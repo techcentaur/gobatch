@@ -50,7 +50,6 @@ go get -u github.com/techcentaur/gobatch
 		}),
 		WithRetryDelay(5 * time.Second),
 		WithReportBenchmarkDuration(true),
-		WithReportBenchmarkSequentialRun(true),
 	}
 ```
 
