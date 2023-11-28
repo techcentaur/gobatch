@@ -8,10 +8,9 @@ import (
 	"time"
 )
 
-func MockOperation(ctx context.Context, data interface{}) error {
-	// Simulate processing time
+func MockIOOperation(ctx context.Context, data interface{}) error {
+	// Simulate processing time of an IO bounded operation
 	time.Sleep(100 * time.Millisecond)
-	//fmt.Println("data is ", data)
 	return nil
 }
 
@@ -19,7 +18,7 @@ func main() {
 	logger := log.New(os.Stdout, "executor: ", log.LstdFlags)
 	rateLimiter := NewAsyncLimiter(100000, 1)
 
-	opts := []Option{
+	opts := []ExecutorOptions{
 		WithCores(8),
 		WithRateLimiter(rateLimiter),
 		WithBatchSize(5),
@@ -44,7 +43,6 @@ func main() {
 		}),
 		WithRetryDelay(5 * time.Second),
 		WithReportBenchmarkDuration(true),
-		WithReportBenchmarkSequentialRun(true),
 	}
 
 	// Create a batch of data to process
@@ -54,7 +52,7 @@ func main() {
 	}
 
 	// Execute batch operation
-	err := ExecuteBatchAsync(MockOperation, dataBatch, opts)
+	err := ExecuteBatchAsync(MockIOOperation, dataBatch, opts)
 	if err != nil {
 		logger.Printf("Batch execution error: %v\n", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, dataBatch []interface{}, opts []Option) error {
+func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, dataBatch []interface{}, opts []ExecutorOptions) error {
 	cfg := NewExecutorOptions()
 
 	// Apply provided options to override defaults
@@ -83,21 +83,6 @@ func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, d
 		cfg.logger.Printf("Time benchmark to execute: %v\n", duration)
 	}
 
-	if cfg.reportBenchmarkSequentialRun {
-		startTime = time.Now()
-		for _, j := range dataBatch {
-			_, err := attemptOperationWithRetries(ctx, operationFunc, j, cfg)
-			if err != nil {
-				handleErrors(&errorsCount, err, cancel, cfg)
-				if cfg.stopOnError {
-					break
-				}
-			}
-		}
-		duration := time.Now().Sub(startTime)
-		cfg.logger.Printf("Time benchmark to execute sequentially: %v\n", duration)
-	}
-
 	// Execute any 'after completion' hook
 	if cfg.afterCompletionHook != nil {
 		cfg.afterCompletionHook()
@@ -107,7 +92,7 @@ func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, d
 }
 
 // attemptOperationWithRetries tries to execute the operation with retries.
-func attemptOperationWithRetries(ctx context.Context, operationFunc func(context.Context, interface{}) error, data interface{}, conf *ExecutorOptions) (interface{}, error) {
+func attemptOperationWithRetries(ctx context.Context, operationFunc func(context.Context, interface{}) error, data interface{}, conf *ExecutorArguments) (interface{}, error) {
 	var result interface{}
 	var err error
 
@@ -126,7 +111,7 @@ func attemptOperationWithRetries(ctx context.Context, operationFunc func(context
 }
 
 // handleErrors manages error counting and circuit breaker logic.
-func handleErrors(errorsCount *int, err error, cancel context.CancelFunc, conf *ExecutorOptions) {
+func handleErrors(errorsCount *int, err error, cancel context.CancelFunc, conf *ExecutorArguments) {
 	if err != nil {
 		*errorsCount++
 		if conf.stopOnError {
@@ -141,98 +126,92 @@ func handleErrors(errorsCount *int, err error, cancel context.CancelFunc, conf *
 	}
 }
 
-func WithCores(cores int) Option {
-	return func(opt *ExecutorOptions) {
+func WithCores(cores int) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.cores = cores
 	}
 }
 
-func WithTimeout(timeout time.Duration) Option {
-	return func(opt *ExecutorOptions) {
+func WithTimeout(timeout time.Duration) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.timeout = timeout
 	}
 }
 
-func WithMaxRetries(maxRetries int) Option {
-	return func(opt *ExecutorOptions) {
+func WithMaxRetries(maxRetries int) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.maxRetries = maxRetries
 	}
 }
 
-func WithRetryDelay(retryDelay time.Duration) Option {
-	return func(opt *ExecutorOptions) {
+func WithRetryDelay(retryDelay time.Duration) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.retryDelay = retryDelay
 	}
 }
 
-func WithStopOnError(stopOnError bool) Option {
-	return func(opt *ExecutorOptions) {
+func WithStopOnError(stopOnError bool) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.stopOnError = stopOnError
 	}
 }
 
-func WithBatchSize(batchSize int) Option {
-	return func(opt *ExecutorOptions) {
+func WithBatchSize(batchSize int) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.batchSize = batchSize
 	}
 }
 
-func WithProgressReportFunc(progressReportFunc func(int)) Option {
-	return func(opt *ExecutorOptions) {
+func WithProgressReportFunc(progressReportFunc func(int)) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.progressReportFunc = progressReportFunc
 	}
 }
 
-func WithLogger(logger *log.Logger) Option {
-	return func(opt *ExecutorOptions) {
+func WithLogger(logger *log.Logger) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.logger = logger
 	}
 }
 
-func WithBeforeStartHook(hook func()) Option {
-	return func(opt *ExecutorOptions) {
+func WithBeforeStartHook(hook func()) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.beforeStartHook = hook
 	}
 }
 
-func WithAfterCompletionHook(hook func()) Option {
-	return func(opt *ExecutorOptions) {
+func WithAfterCompletionHook(hook func()) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.afterCompletionHook = hook
 	}
 }
 
-func WithBeforeRetryHook(hook func(error)) Option {
-	return func(opt *ExecutorOptions) {
+func WithBeforeRetryHook(hook func(error)) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.beforeRetryHook = hook
 	}
 }
 
-func WithCustomSchedulerFunc(customSchedulerFunc func([]interface{}) []interface{}) Option {
-	return func(opt *ExecutorOptions) {
+func WithCustomSchedulerFunc(customSchedulerFunc func([]interface{}) []interface{}) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.customSchedulerFunc = customSchedulerFunc
 	}
 }
 
-func WithRateLimiter(rateLimiter *AsyncLimiter) Option {
-	return func(opt *ExecutorOptions) {
+func WithRateLimiter(rateLimiter *AsyncLimiter) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.rateLimiter = rateLimiter
 	}
 }
 
-func WithReportBenchmarkDuration(reportBenchmark bool) Option {
-	return func(opt *ExecutorOptions) {
+func WithReportBenchmarkDuration(reportBenchmark bool) ExecutorOptions {
+	return func(opt *ExecutorArguments) {
 		opt.reportBenchmarkDuration = reportBenchmark
 	}
 }
 
-func WithReportBenchmarkSequentialRun(reportBenchmark bool) Option {
-	return func(opt *ExecutorOptions) {
-		opt.reportBenchmarkSequentialRun = reportBenchmark
-	}
-}
-
 // Validate checks the provided configuration for validity.
-func (e *ExecutorOptions) Validate() error {
+func (e *ExecutorArguments) Validate() error {
 	if e.cores <= 0 {
 		return errors.New("number of cores must be greater than 0")
 	}
