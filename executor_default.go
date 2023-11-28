@@ -16,7 +16,7 @@ const (
 	DefaultCircuitBreakerLimit = 10              // Default limit for circuit breaker.
 )
 
-func GetDefaultExecutorOptions() *ExecutorOptions {
+func NewExecutorOptions() *ExecutorOptions {
 	return &ExecutorOptions{
 		cores:               DefaultCores,
 		timeout:             DefaultTimeout,

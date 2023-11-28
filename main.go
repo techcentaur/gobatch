@@ -1,32 +1,61 @@
 package main
 
-//
-//func main() {
-//	logger := log.New(os.Stdout, "executor: ", log.LstdFlags)
-//	rateLimiter := NewAsyncLimiter(53, 60) // 53 operations per minute
-//
-//	opts := &ExecutorOptions{
-//		maxBatches: 10,
-//		batchSize:  100,
-//		logger:     logger,
-//	}
-//	WithRateLimiter(rateLimiter)(opts)
-//	// Set other options as needed
-//
-//	// Define your batch operation
-//	operationFunc := func(data interface{}) error {
-//		// Your operation logic here
-//		return nil
-//	}
-//
-//	// Create a batch of data to process
-//	dataBatch := make([]interface{}, 1000) // Example data
-//
-//	// Execute batch operation
-//	err := ExecuteBatchAsync(opts, operationFunc, dataBatch)
-//	if err != nil {
-//		logger.Printf("Batch execution error: %v\n", err)
-//	}
-//
-//	return
-//}
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"time"
+)
+
+func MockOperation(ctx context.Context, data interface{}) error {
+	// Simulate processing time
+	time.Sleep(100 * time.Millisecond)
+	fmt.Println("data is ", data)
+	return nil
+}
+
+func main() {
+	logger := log.New(os.Stdout, "executor: ", log.LstdFlags)
+	rateLimiter := NewAsyncLimiter(5, 1)
+
+	opts := []Option{
+		WithCores(4),
+		WithRateLimiter(rateLimiter),
+		WithBatchSize(5),
+		WithStopOnError(false),
+		WithTimeout(5 * time.Minute),
+		WithMaxRetries(5),
+		WithBeforeStartHook(func() {
+			logger.Println("Starting batch operation...")
+		}),
+		WithAfterCompletionHook(func() {
+			logger.Println("Batch operation completed.")
+		}),
+		WithBeforeRetryHook(func(err error) {
+			logger.Printf("Retrying operation due to error: %v\n", err)
+		}),
+		WithProgressReportFunc(
+			func(numProcessed int) {}),
+		WithLogger(logger),
+		WithCustomSchedulerFunc(func(data []interface{}) []interface{} {
+			// Custom scheduler logic
+			return data
+		}),
+		WithRetryDelay(5 * time.Second),
+	}
+
+	// Create a batch of data to process
+	dataBatch := make([]interface{}, 20) // Example data
+	for i := range dataBatch {
+		dataBatch[i] = fmt.Sprintf("data-%d", i)
+	}
+
+	// Execute batch operation
+	err := ExecuteBatchAsync(MockOperation, dataBatch, opts)
+	if err != nil {
+		logger.Printf("Batch execution error: %v\n", err)
+	}
+
+	return
+}
