@@ -16,17 +16,16 @@ const (
 	DefaultCircuitBreakerLimit = 10              // Default limit for circuit breaker.
 )
 
-func NewExecutorOptions() *ExecutorOptions {
-	return &ExecutorOptions{
-		cores:                        DefaultCores,
-		timeout:                      DefaultTimeout,
-		maxRetries:                   DefaultMaxRetries,
-		retryDelay:                   DefaultRetryDelay,
-		stopOnError:                  false,
-		reportBenchmarkDuration:      false,
-		reportBenchmarkSequentialRun: false,
-		batchSize:                    DefaultBatchSize,
-		circuitBreakerLimit:          DefaultCircuitBreakerLimit,
-		logger:                       log.New(os.Stdout, "asyncbatch: ", log.LstdFlags),
+func NewExecutorOptions() *ExecutorArguments {
+	return &ExecutorArguments{
+		cores:                   DefaultCores,
+		timeout:                 DefaultTimeout,
+		maxRetries:              DefaultMaxRetries,
+		retryDelay:              DefaultRetryDelay,
+		stopOnError:             false,
+		reportBenchmarkDuration: false,
+		batchSize:               DefaultBatchSize,
+		circuitBreakerLimit:     DefaultCircuitBreakerLimit,
+		logger:                  log.New(os.Stdout, "asyncbatch: ", log.LstdFlags),
 	}
 }
