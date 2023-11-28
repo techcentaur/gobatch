@@ -33,7 +33,9 @@ type ExecutorOptions struct {
 	afterCompletionHook func()
 	beforeRetryHook     func(error)
 
-	customSchedulerFunc func([]interface{}) []interface{}
+	customSchedulerFunc          func([]interface{}) []interface{}
+	reportBenchmarkDuration      bool
+	reportBenchmarkSequentialRun bool // If true, the benchmark will be run sequentially. please don't do unless you are testing.
 }
 
 type Option func(*ExecutorOptions)

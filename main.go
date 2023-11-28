@@ -11,16 +11,16 @@ import (
 func MockOperation(ctx context.Context, data interface{}) error {
 	// Simulate processing time
 	time.Sleep(100 * time.Millisecond)
-	fmt.Println("data is ", data)
+	//fmt.Println("data is ", data)
 	return nil
 }
 
 func main() {
 	logger := log.New(os.Stdout, "executor: ", log.LstdFlags)
-	rateLimiter := NewAsyncLimiter(5, 1)
+	rateLimiter := NewAsyncLimiter(100000, 1)
 
 	opts := []Option{
-		WithCores(4),
+		WithCores(8),
 		WithRateLimiter(rateLimiter),
 		WithBatchSize(5),
 		WithStopOnError(false),
@@ -43,10 +43,12 @@ func main() {
 			return data
 		}),
 		WithRetryDelay(5 * time.Second),
+		WithReportBenchmarkDuration(true),
+		WithReportBenchmarkSequentialRun(true),
 	}
 
 	// Create a batch of data to process
-	dataBatch := make([]interface{}, 20) // Example data
+	dataBatch := make([]interface{}, 100) // Example data
 	for i := range dataBatch {
 		dataBatch[i] = fmt.Sprintf("data-%d", i)
 	}
