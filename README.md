@@ -1,7 +1,7 @@
 
 # gobatch
 
-`gobatch` is a versatile and robust GOlang package designed for efficient and robust concurrent asynchronous batch processing. Optimized for I/O-intensive tasks, such as HTTP requests, but can be applied to CPU bounded operations also.
+`gobatch` is a GOlang package for efficient and robust rate-limiter for concurrent asynchronous batch processing. Optimized for I/O-intensive tasks, such as HTTP requests, but can be applied to CPU bounded operations also.
 
 ## Key Features
 
