@@ -18,13 +18,15 @@ const (
 
 func NewExecutorOptions() *ExecutorOptions {
 	return &ExecutorOptions{
-		cores:               DefaultCores,
-		timeout:             DefaultTimeout,
-		maxRetries:          DefaultMaxRetries,
-		retryDelay:          DefaultRetryDelay,
-		stopOnError:         false,
-		batchSize:           DefaultBatchSize,
-		circuitBreakerLimit: DefaultCircuitBreakerLimit,
-		logger:              log.New(os.Stdout, "asyncbatch: ", log.LstdFlags),
+		cores:                        DefaultCores,
+		timeout:                      DefaultTimeout,
+		maxRetries:                   DefaultMaxRetries,
+		retryDelay:                   DefaultRetryDelay,
+		stopOnError:                  false,
+		reportBenchmarkDuration:      false,
+		reportBenchmarkSequentialRun: false,
+		batchSize:                    DefaultBatchSize,
+		circuitBreakerLimit:          DefaultCircuitBreakerLimit,
+		logger:                       log.New(os.Stdout, "asyncbatch: ", log.LstdFlags),
 	}
 }

@@ -44,6 +44,8 @@ func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, d
 	size := cfg.batchSize
 	batches := (len(dataBatch) + size - 1) / size
 
+	startTime := time.Now()
+
 	for i := 0; i < batches; i++ {
 		batch := dataBatch[i*size : min((i+1)*size, len(dataBatch))]
 
@@ -75,6 +77,26 @@ func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, d
 		}(batch)
 	}
 	wg.Wait()
+
+	if cfg.reportBenchmarkDuration {
+		duration := time.Now().Sub(startTime)
+		cfg.logger.Printf("Time benchmark to execute: %v\n", duration)
+	}
+
+	if cfg.reportBenchmarkSequentialRun {
+		startTime = time.Now()
+		for _, j := range dataBatch {
+			_, err := attemptOperationWithRetries(ctx, operationFunc, j, cfg)
+			if err != nil {
+				handleErrors(&errorsCount, err, cancel, cfg)
+				if cfg.stopOnError {
+					break
+				}
+			}
+		}
+		duration := time.Now().Sub(startTime)
+		cfg.logger.Printf("Time benchmark to execute sequentially: %v\n", duration)
+	}
 
 	// Execute any 'after completion' hook
 	if cfg.afterCompletionHook != nil {
@@ -194,6 +216,18 @@ func WithCustomSchedulerFunc(customSchedulerFunc func([]interface{}) []interface
 func WithRateLimiter(rateLimiter *AsyncLimiter) Option {
 	return func(opt *ExecutorOptions) {
 		opt.rateLimiter = rateLimiter
+	}
+}
+
+func WithReportBenchmarkDuration(reportBenchmark bool) Option {
+	return func(opt *ExecutorOptions) {
+		opt.reportBenchmarkDuration = reportBenchmark
+	}
+}
+
+func WithReportBenchmarkSequentialRun(reportBenchmark bool) Option {
+	return func(opt *ExecutorOptions) {
+		opt.reportBenchmarkSequentialRun = reportBenchmark
 	}
 }
 
