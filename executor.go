@@ -4,54 +4,93 @@ import (
 	"context"
 	"errors"
 	"log"
+	"runtime"
 	"sync"
 	"time"
 )
 
-func ExecuteBatchAsync(opts *ExecutorOptions, operationFunc func(interface{}) error, dataBatch []interface{}) error {
+func ExecuteBatchAsync(operationFunc func(context.Context, interface{}) error, dataBatch []interface{}, opts []Option) error {
+	cfg := NewExecutorOptions()
+
+	// Apply provided options to override defaults
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	// Validate configuration settings
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	// Custom scheduler adjustment (if provided)
+	if cfg.customSchedulerFunc != nil {
+		dataBatch = cfg.customSchedulerFunc(dataBatch)
+	}
+
+	// Execute any 'before start' hook
+	if cfg.beforeStartHook != nil {
+		cfg.beforeStartHook()
+	}
+
+	// Setting maximum CPU cores
+	runtime.GOMAXPROCS(cfg.cores)
+
 	var wg sync.WaitGroup
-	batchSize := opts.batchSize
-	for i := 0; i < len(dataBatch); i += batchSize {
-		end := i + batchSize
-		if end > len(dataBatch) {
-			end = len(dataBatch)
-		}
-		batch := dataBatch[i:end]
+	var errorsCount int
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	size := cfg.batchSize
+	batches := (len(dataBatch) + size - 1) / size
+
+	for i := 0; i < batches; i++ {
+		batch := dataBatch[i*size : min((i+1)*size, len(dataBatch))]
 
 		wg.Add(1)
 		go func(b []interface{}) {
 			defer wg.Done()
-			for _, data := range b {
+			for _, j := range b {
 				// Acquire capacity from the rate limiter
-				if opts.rateLimiter != nil {
-					err := opts.rateLimiter.Acquire(1) // Acquire capacity for one operation
+				if cfg.rateLimiter != nil {
+					err := cfg.rateLimiter.Acquire(1) // Acquire capacity for one operation
 					if err != nil {
-						opts.logger.Printf("Rate limit error: %v\n", err)
+						cfg.logger.Printf("Rate limit error: %v\n", err)
 						return
 					}
 				}
 
-				// Execute the operation
-				err := operationFunc(data)
+				_, err := attemptOperationWithRetries(ctx, operationFunc, j, cfg)
 				if err != nil {
-					// handle error, implement retry logic, etc.
+					handleErrors(&errorsCount, err, cancel, cfg)
+					if cfg.stopOnError {
+						return
+					}
 				}
 
-				// Implement other features like progress report, hooks, etc.
+				if cfg.progressReportFunc != nil {
+					cfg.progressReportFunc(1) // Reporting progress after each operation
+				}
 			}
 		}(batch)
 	}
 	wg.Wait()
+
+	// Execute any 'after completion' hook
+	if cfg.afterCompletionHook != nil {
+		cfg.afterCompletionHook()
+	}
+
 	return nil
 }
 
 // attemptOperationWithRetries tries to execute the operation with retries.
-func attemptOperationWithRetries(ctx context.Context, operationFunc IOOperation, data interface{}, conf *ExecutorOptions) (interface{}, error) {
+func attemptOperationWithRetries(ctx context.Context, operationFunc func(context.Context, interface{}) error, data interface{}, conf *ExecutorOptions) (interface{}, error) {
 	var result interface{}
 	var err error
 
 	for i := 0; i <= conf.maxRetries; i++ {
-		result, err = operationFunc(ctx, data)
+		err = operationFunc(ctx, data)
 		if err == nil || conf.retryDelay <= 0 {
 			break
 		}
@@ -86,12 +125,6 @@ func WithCores(cores int) Option {
 	}
 }
 
-func WithMaxGoroutines(maxBatches int) Option {
-	return func(opt *ExecutorOptions) {
-		opt.maxBatches = maxBatches
-	}
-}
-
 func WithTimeout(timeout time.Duration) Option {
 	return func(opt *ExecutorOptions) {
 		opt.timeout = timeout
@@ -110,21 +143,9 @@ func WithRetryDelay(retryDelay time.Duration) Option {
 	}
 }
 
-func WithConcurrencyLimit(concurrencyLimit map[string]int) Option {
-	return func(opt *ExecutorOptions) {
-		opt.concurrencyLimit = concurrencyLimit
-	}
-}
-
 func WithStopOnError(stopOnError bool) Option {
 	return func(opt *ExecutorOptions) {
 		opt.stopOnError = stopOnError
-	}
-}
-
-func WithMaxResources(maxResources int) Option {
-	return func(opt *ExecutorOptions) {
-		opt.maxResources = maxResources
 	}
 }
 
@@ -137,12 +158,6 @@ func WithBatchSize(batchSize int) Option {
 func WithProgressReportFunc(progressReportFunc func(int)) Option {
 	return func(opt *ExecutorOptions) {
 		opt.progressReportFunc = progressReportFunc
-	}
-}
-
-func WithCircuitBreakerLimit(circuitBreakerLimit int) Option {
-	return func(opt *ExecutorOptions) {
-		opt.circuitBreakerLimit = circuitBreakerLimit
 	}
 }
 
@@ -195,9 +210,6 @@ func (e *ExecutorOptions) Validate() error {
 	}
 	if e.retryDelay < 0 {
 		return errors.New("retry delay cannot be negative")
-	}
-	if e.maxResources < 0 {
-		return errors.New("maximum resources cannot be negative")
 	}
 	if e.batchSize <= 0 {
 		return errors.New("batch size must be greater than 0")
